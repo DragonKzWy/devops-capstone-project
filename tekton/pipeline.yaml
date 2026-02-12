@@ -1,5 +1,5 @@
 #
-# This pipeline needs the following tasks from Tekton Hub
+# This pipeline requires the following Tekton Hub tasks:
 #   - git-clone
 #   - flake8
 #
@@ -37,29 +37,36 @@ spec:
     - name: lint
       runAfter:
         - clone
-      taskRef:
-        name: flake8
       workspaces:
         - name: source
           workspace: pipeline-workspace
+      taskRef:
+        name: flake8
       params:
         - name: image
           value: "python:3.9-slim"
         - name: args
           value:
-            - "--count"
-            - "--max-complexity=10"
-            - "--max-line-length=127"
-            - "--statistics"
+            [
+              "--count",
+              "--max-complexity=10",
+              "--max-line-length=127",
+              "--statistics"
+            ]
 
     - name: tests
       runAfter:
         - clone
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
       taskRef:
-        name: echo
+        name: nose
       params:
-        - name: message
-          value: "Running unit tests"
+        - name: database_uri
+          value: "sqlite:///test.db"
+        - name: args
+          value: "-v --with-spec --spec-color"
 
     - name: build
       runAfter:
