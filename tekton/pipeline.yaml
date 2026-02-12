@@ -1,7 +1,8 @@
 #
-# This pipeline requires the following Tekton Hub tasks:
+# This pipeline requires the following Tekton tasks:
 #   - git-clone
 #   - flake8
+#   - buildah (ClusterTask)
 #
 ---
 apiVersion: tekton.dev/v1beta1
@@ -13,6 +14,9 @@ spec:
     - name: repo-url
       type: string
     - name: branch
+      type: string
+      default: main
+    - name: build-image
       type: string
 
   workspaces:
@@ -37,31 +41,29 @@ spec:
     - name: lint
       runAfter:
         - clone
+      taskRef:
+        name: flake8
       workspaces:
         - name: source
           workspace: pipeline-workspace
-      taskRef:
-        name: flake8
       params:
         - name: image
           value: "python:3.9-slim"
         - name: args
           value:
-            [
-              "--count",
-              "--max-complexity=10",
-              "--max-line-length=127",
-              "--statistics"
-            ]
+            - "--count"
+            - "--max-complexity=10"
+            - "--max-line-length=127"
+            - "--statistics"
 
     - name: tests
       runAfter:
         - clone
+      taskRef:
+        name: nose
       workspaces:
         - name: source
           workspace: pipeline-workspace
-      taskRef:
-        name: nose
       params:
         - name: database_uri
           value: "sqlite:///test.db"
@@ -70,19 +72,14 @@ spec:
 
     - name: build
       runAfter:
-        - lint
         - tests
+        - lint
       taskRef:
-        name: echo
+        name: buildah
+        kind: ClusterTask
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
       params:
-        - name: message
-          value: "Building Docker image"
-
-    - name: deploy
-      runAfter:
-        - build
-      taskRef:
-        name: echo
-      params:
-        - name: message
-          value: "Deploying to OpenShift"
+        - name: IMAGE
+          value: "$(params.build-image)"
